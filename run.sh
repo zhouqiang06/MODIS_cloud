@@ -9,7 +9,7 @@ usage() {
     cat >&2 <<EOF
 Usage:
   $0 YYYY-MM-DD
-  $0 YYYY-MM-DD --earthdata-username USER --earthdata-password PASSWORD
+  $0 YYYY-MM-DD --earthdata_username USER --earthdata_password PASSWORD
 
 WARNING: raw password arguments may be visible in process listings and logs.
 EOF
@@ -35,25 +35,25 @@ earthdata_password=""
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        --earthdata-username)
+        --earthdata_username)
             if [[ $# -lt 2 ]]; then
-                echo "Error: --earthdata-username requires a value." >&2
+                echo "Error: --earthdata_username requires a value." >&2
                 exit 2
             fi
             if [[ -z "$2" ]]; then
-                echo "Error: --earthdata-username cannot be empty." >&2
+                echo "Error: --earthdata_username cannot be empty." >&2
                 exit 2
             fi
             earthdata_username="$2"
             shift 2
             ;;
-        --earthdata-password)
+        --earthdata_password)
             if [[ $# -lt 2 ]]; then
-                echo "Error: --earthdata-password requires a value." >&2
+                echo "Error: --earthdata_password requires a value." >&2
                 exit 2
             fi
             if [[ -z "$2" ]]; then
-                echo "Error: --earthdata-password cannot be empty." >&2
+                echo "Error: --earthdata_password cannot be empty." >&2
                 exit 2
             fi
             earthdata_password="$2"
@@ -73,7 +73,7 @@ done
 
 if [[ -n "${earthdata_username}" || -n "${earthdata_password}" ]]; then
     if [[ -z "${earthdata_username}" || -z "${earthdata_password}" ]]; then
-        echo "Error: --earthdata-username and --earthdata-password must be used together." >&2
+        echo "Error: --earthdata_username and --earthdata_password must be used together." >&2
         exit 2
     fi
     export EARTHACCESS_LOGIN_STRATEGY="environment"
@@ -147,5 +147,5 @@ exec env UV_PROJECT="${basedir}" \
     uv run --project "${basedir}" --no-dev \
     "${python_script}" \
     --proc-date "${proc_date}" \
-    --output-dir "${output_dir}" \
+    --output_dir "${output_dir}" \
     "${credential_args[@]}"
