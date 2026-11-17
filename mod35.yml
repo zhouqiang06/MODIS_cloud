@@ -1,0 +1,40 @@
+name: Process MOD35 day
+
+on:
+  workflow_dispatch:
+    inputs:
+      proc_date:
+        description: Processing date (YYYY-MM-DD)
+        required: true
+        default: "2025-01-01"
+
+permissions:
+  contents: read
+
+jobs:
+  process:
+    runs-on: ubuntu-latest
+
+    env:
+      EARTHDATA_USERNAME: ${{ secrets.EARTHDATA_USERNAME }}
+      EARTHDATA_PASSWORD: ${{ secrets.EARTHDATA_PASSWORD }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Install dependencies
+        run: uv sync --no-dev
+
+      - name: Verify credentials are available
+        run: |
+          test -n "$EARTHDATA_USERNAME"
+          test -n "$EARTHDATA_PASSWORD"
+
+      - name: Run MOD35 processing
+        run: |
+          chmod +x run.sh
+          ./run.sh "${{ inputs.proc_date }}"
