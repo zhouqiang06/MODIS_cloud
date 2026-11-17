@@ -958,10 +958,31 @@ def main(proc_date: str, save_dir):
     print("Resampling: Rasterio/GDAL native nearest neighbor")
     print("Output: daily cloudy-count and total-count GeoTIFFs only")
 
-    login_strategy = os.environ.get(
-        "EARTHACCESS_LOGIN_STRATEGY",
-        "interactive",
-    ).strip().lower()
+    configured_strategy = os.environ.get("EARTHACCESS_LOGIN_STRATEGY")
+    earthdata_username = os.environ.get("EARTHDATA_USERNAME")
+    earthdata_password = os.environ.get("EARTHDATA_PASSWORD")
+
+    if bool(earthdata_username) != bool(earthdata_password):
+        raise RuntimeError(
+            "EARTHDATA_USERNAME and EARTHDATA_PASSWORD must either both be "
+            "set or both be unset."
+        )
+
+    if configured_strategy:
+        login_strategy = configured_strategy.strip().lower()
+    elif earthdata_username and earthdata_password:
+        login_strategy = "environment"
+    elif os.path.isfile(os.path.expanduser("~/.netrc")):
+        login_strategy = "netrc"
+    elif sys.stdin.isatty():
+        login_strategy = "interactive"
+    else:
+        raise RuntimeError(
+            "No Earthdata credentials are available in this headless "
+            "environment. Set EARTHDATA_USERNAME and EARTHDATA_PASSWORD, "
+            "or mount ~/.netrc."
+        )
+
     if login_strategy not in {"interactive", "environment", "netrc"}:
         raise ValueError(
             "EARTHACCESS_LOGIN_STRATEGY must be interactive, environment, "
