@@ -948,7 +948,7 @@ def main(
     proc_date: str,
     save_dir,
     earthdata_username=None,
-    earthdata_password_file=None,
+    earthdata_password=None,
 ):
     warnings.filterwarnings("ignore", category=FutureWarning)
     output_dir = configure_directories(save_dir)
@@ -968,17 +968,13 @@ def main(
     environment_password = os.environ.get("EARTHDATA_PASSWORD")
 
     effective_username = earthdata_username or environment_username
-    effective_password = (
-        read_password_file(earthdata_password_file)
-        if earthdata_password_file
-        else environment_password
-    )
+    effective_password = earthdata_password or environment_password
 
     if bool(effective_username) != bool(effective_password):
         raise RuntimeError(
             "Earthdata username and password must either both be provided or "
             "both be omitted. Use environment variables, or combine "
-            "--earthdata-username with --earthdata-password-file."
+            "--earthdata-username with a password option."
         )
 
     if configured_strategy:
@@ -1136,12 +1132,14 @@ if __name__ == "__main__":
         description="MOD35_L2 Collection 6.1 daily cloud-count processing."
     )
     parser.add_argument(
+        "--proc-date",
         "--proc_date",
         dest="proc_date",
         help="Date in ISO format, for example 2025-01-01.",
         required=True,
     )
     parser.add_argument(
+        "--output-dir",
         "--output_dir",
         dest="output_dir",
         help=(
@@ -1151,17 +1149,22 @@ if __name__ == "__main__":
         required=True,
     )
     parser.add_argument(
+        "--earthdata-username",
         "--earthdata_username",
+        dest="earthdata_username",
         help=(
             "Earthdata username. Prefer EARTHDATA_USERNAME for automated "
             "runs."
         ),
     )
     parser.add_argument(
-        "--earthdata_password_file",
+        "--earthdata-password",
+        "--earthdata_password",
+        dest="earthdata_password",
         help=(
-            "Path to a one-line password file readable only by its owner. "
-            "Raw password command-line arguments are intentionally unsupported."
+            "Earthdata password. WARNING: raw command-line passwords may be "
+            "visible in process listings and job metadata. Prefer environment "
+            "variables whenever possible."
         ),
     )
 
@@ -1170,5 +1173,5 @@ if __name__ == "__main__":
         proc_date=arguments.proc_date,
         save_dir=arguments.output_dir,
         earthdata_username=arguments.earthdata_username,
-        earthdata_password_file=arguments.earthdata_password_file,
+        earthdata_password=arguments.earthdata_password,
     )
