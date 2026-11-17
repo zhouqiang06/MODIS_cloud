@@ -958,8 +958,21 @@ def main(proc_date: str, save_dir):
     print("Resampling: Rasterio/GDAL native nearest neighbor")
     print("Output: daily cloudy-count and total-count GeoTIFFs only")
 
-    print("\nAuthenticating with Earthaccess...")
-    earthaccess.login(strategy="interactive", persist=True)
+    login_strategy = os.environ.get(
+        "EARTHACCESS_LOGIN_STRATEGY",
+        "interactive",
+    ).strip().lower()
+    if login_strategy not in {"interactive", "environment", "netrc"}:
+        raise ValueError(
+            "EARTHACCESS_LOGIN_STRATEGY must be interactive, environment, "
+            f"or netrc; received {login_strategy!r}."
+        )
+
+    print(f"\nAuthenticating with Earthaccess using {login_strategy!r}...")
+    earthaccess.login(
+        strategy=login_strategy,
+        persist=(login_strategy == "interactive"),
+    )
 
     print(f"Searching for MOD35_L2 Collection 6.1 granules on {proc_date}...")
     mod35_results = list(
