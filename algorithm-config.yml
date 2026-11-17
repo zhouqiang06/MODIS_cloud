@@ -10,7 +10,7 @@ inputs:
   positional:
   - default: ''
     description: Date in ISO format, for example 2025-01-01
-    name: proc-date
+    name: proc_date
     required: true
 queue: maap-dps-worker-32gb
 repository_url: https://github.com/zhouqiang06/hls-composite
