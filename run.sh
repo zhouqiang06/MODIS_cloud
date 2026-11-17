@@ -1,54 +1,77 @@
-#!/usr/bin/env -S bash --login
+#!/usr/bin/env bash
 set -euo pipefail
-# This script is the one that is called by the DPS.
-# Use this script to prepare input paths for any files
-# that are downloaded by the DPS and outputs that are
-# required to be persisted
 
-# Get current location of build script
-basedir=$(dirname "$(readlink -f "$0")")
+# DPS entry point for one day of MOD35_L2 processing.
 
-# Create output directory to store outputs.
-# The name is output as required by the DPS.
-# Note how we dont provide an absolute path
-# but instead a relative one as the DPS creates
-# a temp working directory for our code.
+basedir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 
-mkdir -p output
-
-
-# DPS downloads all files provided as inputs to
-# this directory called input.
-# In our example the image will be downloaded here.
-# INPUT_DIR=input
-OUTPUT_DIR=output
-
-# input_filename=$(ls -d input/*)
-echo "number of inputs: " $#
-# Parse positional arguments (3 required, 2 optional)
-# if [[ $# -eq  0]] || [[ $# -gt 1 ]]; then
-#     echo "Error: Expected 1 arguments, got $#"
-#     echo "Usage: $0 <proc_date>"
-#     exit 1
-# fi
+if [[ $# -ne 1 ]]; then
+    echo "Error: expected exactly one processing date, received $#" >&2
+    echo "Usage: $0 YYYY-MM-DD" >&2
+    exit 2
+fi
 
 proc_date="$1"
+if [[ ! "${proc_date}" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]; then
+    echo "Error: processing date must use YYYY-MM-DD format." >&2
+    exit 2
+fi
 
-# Call the script using the absolute paths
-# Use the updated environment when calling 'uv run'
-# This lets us run the same way in a Terminal as in DPS
-# Any output written to the stdout and stderr streams will be automatically captured and placed in the output dir
+# DPS persists files written beneath the relative output directory.
+output_dir="${PWD}/output"
+mkdir -p "${output_dir}"
 
-# unset PROJ env vars
+# Avoid inheriting host PROJ paths that conflict with Rasterio/GDAL in the
+# uv-managed Python environment.
 unset PROJ_LIB
 unset PROJ_DATA
 
-# Build the command with required arguments
-cmd=(
-    uv run --no-dev "${basedir}/mod35_daily.py"
-    --proc_date "${proc_date}"
-    --output_dir "${OUTPUT_DIR}"
-)
+# Interactive Earthaccess authentication launches a browser and is unsuitable
+# for a headless DPS container. Prefer injected secrets, then a mounted netrc.
+if [[ -z "${EARTHACCESS_LOGIN_STRATEGY:-}" ]]; then
+    if [[ -n "${EARTHDATA_USERNAME:-}" && -n "${EARTHDATA_PASSWORD:-}" ]]; then
+        export EARTHACCESS_LOGIN_STRATEGY="environment"
+    elif [[ -f "${HOME}/.netrc" ]]; then
+        export EARTHACCESS_LOGIN_STRATEGY="netrc"
+    else
+        echo "Error: Earthdata credentials were not provided." >&2
+        echo "Set EARTHDATA_USERNAME and EARTHDATA_PASSWORD, or mount ${HOME}/.netrc." >&2
+        exit 3
+    fi
+fi
 
-# Execute the command with UV_PROJECT environment variable
-UV_PROJECT="${basedir}" "${cmd[@]}"
+case "${EARTHACCESS_LOGIN_STRATEGY}" in
+    environment)
+        : "${EARTHDATA_USERNAME:?EARTHDATA_USERNAME is required for environment login}"
+        : "${EARTHDATA_PASSWORD:?EARTHDATA_PASSWORD is required for environment login}"
+        ;;
+    netrc)
+        if [[ ! -f "${HOME}/.netrc" ]]; then
+            echo "Error: ${HOME}/.netrc does not exist." >&2
+            exit 3
+        fi
+        ;;
+    interactive)
+        echo "Error: interactive Earthdata login is not supported in headless DPS." >&2
+        exit 3
+        ;;
+    *)
+        echo "Error: unsupported EARTHACCESS_LOGIN_STRATEGY=${EARTHACCESS_LOGIN_STRATEGY}" >&2
+        exit 3
+        ;;
+esac
+
+python_script="${MOD35_SCRIPT:-${basedir}/mod35_daily_tif.py}"
+if [[ ! -f "${python_script}" && -f "${basedir}/mod35_daily.py" ]]; then
+    python_script="${basedir}/mod35_daily.py"
+fi
+if [[ ! -f "${python_script}" ]]; then
+    echo "Error: MOD35 Python script not found: ${python_script}" >&2
+    exit 4
+fi
+
+exec env UV_PROJECT="${basedir}" \
+    uv run --project "${basedir}" --no-dev \
+    "${python_script}" \
+    --proc-date "${proc_date}" \
+    --output-dir "${output_dir}"
