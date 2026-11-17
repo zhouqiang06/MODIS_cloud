@@ -5,16 +5,87 @@ set -euo pipefail
 
 basedir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 
-if [[ $# -ne 1 ]]; then
-    echo "Error: expected exactly one processing date, received $#" >&2
-    echo "Usage: $0 YYYY-MM-DD" >&2
+usage() {
+    cat >&2 <<EOF
+Usage:
+  $0 YYYY-MM-DD
+  $0 YYYY-MM-DD --earthdata_username USER --earthdata_password_file PATH
+
+Raw password command-line values are intentionally unsupported.
+EOF
+}
+
+if [[ $# -lt 1 ]]; then
+    echo "Error: processing date is required." >&2
+    usage
     exit 2
 fi
 
 proc_date="$1"
+shift
+
 if [[ ! "${proc_date}" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]; then
     echo "Error: processing date must use YYYY-MM-DD format." >&2
+    usage
     exit 2
+fi
+
+earthdata_username=""
+earthdata_password_file=""
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --earthdata_username)
+            if [[ $# -lt 2 ]]; then
+                echo "Error: --earthdata_username requires a value." >&2
+                exit 2
+            fi
+            if [[ -z "$2" ]]; then
+                echo "Error: --earthdata_username cannot be empty." >&2
+                exit 2
+            fi
+            earthdata_username="$2"
+            shift 2
+            ;;
+        --earthdata_password_file)
+            if [[ $# -lt 2 ]]; then
+                echo "Error: --earthdata_password_file requires a path." >&2
+                exit 2
+            fi
+            if [[ -z "$2" ]]; then
+                echo "Error: --earthdata_password_file cannot be empty." >&2
+                exit 2
+            fi
+            earthdata_password_file="$2"
+            shift 2
+            ;;
+        -h|--help)
+            usage
+            exit 0
+            ;;
+        --earthdata_password)
+            echo "Error: raw password arguments are unsafe and unsupported." >&2
+            echo "Use --earthdata_password_file with a chmod 600 file." >&2
+            exit 2
+            ;;
+        *)
+            echo "Error: unknown argument: $1" >&2
+            usage
+            exit 2
+            ;;
+    esac
+done
+
+if [[ -n "${earthdata_username}" || -n "${earthdata_password_file}" ]]; then
+    if [[ -z "${earthdata_username}" || -z "${earthdata_password_file}" ]]; then
+        echo "Error: --earthdata_username and --earthdata_password_file must be used together." >&2
+        exit 2
+    fi
+    if [[ ! -f "${earthdata_password_file}" ]]; then
+        echo "Error: password file does not exist: ${earthdata_password_file}" >&2
+        exit 2
+    fi
+    export EARTHACCESS_LOGIN_STRATEGY="environment"
 fi
 
 # DPS persists files written beneath the relative output directory.
@@ -27,8 +98,9 @@ unset PROJ_LIB
 unset PROJ_DATA
 
 # Interactive Earthaccess authentication launches a browser and is unsuitable
-# for a headless DPS container. Prefer injected secrets, then a mounted netrc.
-if [[ -z "${EARTHACCESS_LOGIN_STRATEGY:-}" ]]; then
+# for a headless DPS container. Prefer safe parameters, injected secrets, then
+# a mounted netrc.
+if [[ -z "${earthdata_username}" && -z "${EARTHACCESS_LOGIN_STRATEGY:-}" ]]; then
     if [[ -n "${EARTHDATA_USERNAME:-}" && -n "${EARTHDATA_PASSWORD:-}" ]]; then
         export EARTHACCESS_LOGIN_STRATEGY="environment"
     elif [[ -f "${HOME}/.netrc" ]]; then
@@ -42,8 +114,10 @@ fi
 
 case "${EARTHACCESS_LOGIN_STRATEGY}" in
     environment)
-        : "${EARTHDATA_USERNAME:?EARTHDATA_USERNAME is required for environment login}"
-        : "${EARTHDATA_PASSWORD:?EARTHDATA_PASSWORD is required for environment login}"
+        if [[ -z "${earthdata_username}" ]]; then
+            : "${EARTHDATA_USERNAME:?EARTHDATA_USERNAME is required for environment login}"
+            : "${EARTHDATA_PASSWORD:?EARTHDATA_PASSWORD is required for environment login}"
+        fi
         ;;
     netrc)
         if [[ ! -f "${HOME}/.netrc" ]]; then
@@ -70,8 +144,17 @@ if [[ ! -f "${python_script}" ]]; then
     exit 4
 fi
 
+credential_args=()
+if [[ -n "${earthdata_username}" ]]; then
+    credential_args+=(
+        --earthdata_username "${earthdata_username}"
+        --earthdata_password_file "${earthdata_password_file}"
+    )
+fi
+
 exec env UV_PROJECT="${basedir}" \
     uv run --project "${basedir}" --no-dev \
     "${python_script}" \
-    --proc-date "${proc_date}" \
-    --output-dir "${output_dir}"
+    --proc_date "${proc_date}" \
+    --output_dir "${output_dir}" \
+    "${credential_args[@]}"
