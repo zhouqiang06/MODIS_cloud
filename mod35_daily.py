@@ -944,7 +944,12 @@ def process_day(date, granule_pairs):
                     pass
 
 
-def main(proc_date: str, save_dir):
+def main(
+    proc_date: str,
+    save_dir,
+    earthdata_username=None,
+    earthdata_password_file=None,
+):
     warnings.filterwarnings("ignore", category=FutureWarning)
     output_dir = configure_directories(save_dir)
     requested_date = datetime.strptime(proc_date, "%Y-%m-%d").date()
@@ -959,18 +964,26 @@ def main(proc_date: str, save_dir):
     print("Output: daily cloudy-count and total-count GeoTIFFs only")
 
     configured_strategy = os.environ.get("EARTHACCESS_LOGIN_STRATEGY")
-    earthdata_username = os.environ.get("EARTHDATA_USERNAME")
-    earthdata_password = os.environ.get("EARTHDATA_PASSWORD")
+    environment_username = os.environ.get("EARTHDATA_USERNAME")
+    environment_password = os.environ.get("EARTHDATA_PASSWORD")
 
-    if bool(earthdata_username) != bool(earthdata_password):
+    effective_username = earthdata_username or environment_username
+    effective_password = (
+        read_password_file(earthdata_password_file)
+        if earthdata_password_file
+        else environment_password
+    )
+
+    if bool(effective_username) != bool(effective_password):
         raise RuntimeError(
-            "EARTHDATA_USERNAME and EARTHDATA_PASSWORD must either both be "
-            "set or both be unset."
+            "Earthdata username and password must either both be provided or "
+            "both be omitted. Use environment variables, or combine "
+            "--earthdata-username with --earthdata-password-file."
         )
 
     if configured_strategy:
         login_strategy = configured_strategy.strip().lower()
-    elif earthdata_username and earthdata_password:
+    elif effective_username and effective_password:
         login_strategy = "environment"
     elif os.path.isfile(os.path.expanduser("~/.netrc")):
         login_strategy = "netrc"
@@ -988,12 +1001,41 @@ def main(proc_date: str, save_dir):
             "EARTHACCESS_LOGIN_STRATEGY must be interactive, environment, "
             f"or netrc; received {login_strategy!r}."
         )
+    if login_strategy == "environment" and not (
+        effective_username and effective_password
+    ):
+        raise RuntimeError(
+            "Environment authentication requires both an Earthdata username "
+            "and password."
+        )
 
     print(f"\nAuthenticating with Earthaccess using {login_strategy!r}...")
-    earthaccess.login(
-        strategy=login_strategy,
-        persist=(login_strategy == "interactive"),
-    )
+
+    # Earthaccess's environment strategy reads these standard names. Restore
+    # the caller's environment immediately after login when credentials came
+    # from command-line/file parameters.
+    original_username = os.environ.get("EARTHDATA_USERNAME")
+    original_password = os.environ.get("EARTHDATA_PASSWORD")
+    try:
+        if login_strategy == "environment":
+            os.environ["EARTHDATA_USERNAME"] = effective_username
+            os.environ["EARTHDATA_PASSWORD"] = effective_password
+        earthaccess.login(
+            strategy=login_strategy,
+            persist=(login_strategy == "interactive"),
+        )
+    finally:
+        if original_username is None:
+            os.environ.pop("EARTHDATA_USERNAME", None)
+        else:
+            os.environ["EARTHDATA_USERNAME"] = original_username
+
+        if original_password is None:
+            os.environ.pop("EARTHDATA_PASSWORD", None)
+        else:
+            os.environ["EARTHDATA_PASSWORD"] = original_password
+
+        effective_password = None
 
     print(f"Searching for MOD35_L2 Collection 6.1 granules on {proc_date}...")
     mod35_results = list(
@@ -1094,14 +1136,12 @@ if __name__ == "__main__":
         description="MOD35_L2 Collection 6.1 daily cloud-count processing."
     )
     parser.add_argument(
-        "--proc-date",
         "--proc_date",
         dest="proc_date",
         help="Date in ISO format, for example 2025-01-01.",
         required=True,
     )
     parser.add_argument(
-        "--output-dir",
         "--output_dir",
         dest="output_dir",
         help=(
@@ -1110,9 +1150,25 @@ if __name__ == "__main__":
         ),
         required=True,
     )
+    parser.add_argument(
+        "--earthdata_username",
+        help=(
+            "Earthdata username. Prefer EARTHDATA_USERNAME for automated "
+            "runs."
+        ),
+    )
+    parser.add_argument(
+        "--earthdata_password_file",
+        help=(
+            "Path to a one-line password file readable only by its owner. "
+            "Raw password command-line arguments are intentionally unsupported."
+        ),
+    )
 
     arguments = parser.parse_args()
     main(
         proc_date=arguments.proc_date,
         save_dir=arguments.output_dir,
+        earthdata_username=arguments.earthdata_username,
+        earthdata_password_file=arguments.earthdata_password_file,
     )
