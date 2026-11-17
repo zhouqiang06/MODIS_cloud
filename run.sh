@@ -32,7 +32,7 @@ if [[ $# -eq  0]] || [[ $# -gt 1 ]]; then
     exit 1
 fi
 
-proc-date="$1"
+proc_date="$1"
 
 # Call the script using the absolute paths
 # Use the updated environment when calling 'uv run'
@@ -46,7 +46,7 @@ unset PROJ_DATA
 # Build the command with required arguments
 cmd=(
     uv run --no-dev "${basedir}/mod35_daily.py"
-    --proc-date "${proc-date}"
+    --proc_date "${proc_date}"
     --output_dir "${OUTPUT_DIR}"
 )
 
