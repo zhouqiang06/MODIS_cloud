@@ -9,9 +9,9 @@ usage() {
     cat >&2 <<EOF
 Usage:
   $0 YYYY-MM-DD
-  $0 YYYY-MM-DD --earthdata_username USER --earthdata_password_file PATH
+  $0 YYYY-MM-DD --earthdata-username USER --earthdata-password PASSWORD
 
-Raw password command-line values are intentionally unsupported.
+WARNING: raw password arguments may be visible in process listings and logs.
 EOF
 }
 
@@ -31,42 +31,37 @@ if [[ ! "${proc_date}" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]; then
 fi
 
 earthdata_username=""
-earthdata_password_file=""
+earthdata_password=""
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        --earthdata_username)
+        --earthdata-username)
             if [[ $# -lt 2 ]]; then
-                echo "Error: --earthdata_username requires a value." >&2
+                echo "Error: --earthdata-username requires a value." >&2
                 exit 2
             fi
             if [[ -z "$2" ]]; then
-                echo "Error: --earthdata_username cannot be empty." >&2
+                echo "Error: --earthdata-username cannot be empty." >&2
                 exit 2
             fi
             earthdata_username="$2"
             shift 2
             ;;
-        --earthdata_password_file)
+        --earthdata-password)
             if [[ $# -lt 2 ]]; then
-                echo "Error: --earthdata_password_file requires a path." >&2
+                echo "Error: --earthdata-password requires a value." >&2
                 exit 2
             fi
             if [[ -z "$2" ]]; then
-                echo "Error: --earthdata_password_file cannot be empty." >&2
+                echo "Error: --earthdata-password cannot be empty." >&2
                 exit 2
             fi
-            earthdata_password_file="$2"
+            earthdata_password="$2"
             shift 2
             ;;
         -h|--help)
             usage
             exit 0
-            ;;
-        --earthdata_password)
-            echo "Error: raw password arguments are unsafe and unsupported." >&2
-            echo "Use --earthdata_password_file with a chmod 600 file." >&2
-            exit 2
             ;;
         *)
             echo "Error: unknown argument: $1" >&2
@@ -76,13 +71,9 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-if [[ -n "${earthdata_username}" || -n "${earthdata_password_file}" ]]; then
-    if [[ -z "${earthdata_username}" || -z "${earthdata_password_file}" ]]; then
-        echo "Error: --earthdata_username and --earthdata_password_file must be used together." >&2
-        exit 2
-    fi
-    if [[ ! -f "${earthdata_password_file}" ]]; then
-        echo "Error: password file does not exist: ${earthdata_password_file}" >&2
+if [[ -n "${earthdata_username}" || -n "${earthdata_password}" ]]; then
+    if [[ -z "${earthdata_username}" || -z "${earthdata_password}" ]]; then
+        echo "Error: --earthdata-username and --earthdata-password must be used together." >&2
         exit 2
     fi
     export EARTHACCESS_LOGIN_STRATEGY="environment"
@@ -98,8 +89,8 @@ unset PROJ_LIB
 unset PROJ_DATA
 
 # Interactive Earthaccess authentication launches a browser and is unsuitable
-# for a headless DPS container. Prefer safe parameters, injected secrets, then
-# a mounted netrc.
+# for a headless DPS container. Prefer injected secrets or a mounted netrc.
+# Raw password arguments are supported for DPS systems that require them.
 if [[ -z "${earthdata_username}" && -z "${EARTHACCESS_LOGIN_STRATEGY:-}" ]]; then
     if [[ -n "${EARTHDATA_USERNAME:-}" && -n "${EARTHDATA_PASSWORD:-}" ]]; then
         export EARTHACCESS_LOGIN_STRATEGY="environment"
@@ -148,13 +139,13 @@ credential_args=()
 if [[ -n "${earthdata_username}" ]]; then
     credential_args+=(
         --earthdata_username "${earthdata_username}"
-        --earthdata_password_file "${earthdata_password_file}"
+        --earthdata_password "${earthdata_password}"
     )
 fi
 
 exec env UV_PROJECT="${basedir}" \
     uv run --project "${basedir}" --no-dev \
     "${python_script}" \
-    --proc_date "${proc_date}" \
-    --output_dir "${output_dir}" \
+    --proc-date "${proc_date}" \
+    --output-dir "${output_dir}" \
     "${credential_args[@]}"
