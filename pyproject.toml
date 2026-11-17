@@ -1,0 +1,32 @@
+[project]
+name = "MODIS_cloud"
+description = "This project creates daily global cloudy-pixel and valid-observation count GeoTIFFs from MOD35_L2 Collection 6.1 data"
+readme = "README.md"
+requires-python = ">=3.12"
+dynamic = ["version"]
+
+dependencies = [
+    "maap-py>=4.2.0",
+    "rasterio>=1.4.3",
+    "rioxarray>=0.17.0",
+    "pyhdf>=0.11.7",
+    "tqdm>=4.67.3",
+    "earthaccess>=0.14.0",
+]
+
+[dependency-groups]
+dev = [
+    "ipython>=9.6.0",
+    "jupyterlab>=4.4.10",
+    "matplotlib>=3.10.7",
+    "mypy>=1.18.2",
+    "pre-commit>=4.3.0",
+    "ruff>=0.14.3",
+]
+
+[tool.pdm.version]
+source = "scm"
+
+[tool.ruff]
+
+[tool.ruff.format]
