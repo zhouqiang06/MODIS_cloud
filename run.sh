@@ -24,13 +24,13 @@ mkdir -p output
 OUTPUT_DIR=output
 
 # input_filename=$(ls -d input/*)
-
+echo "number of inputs: " $#
 # Parse positional arguments (3 required, 2 optional)
-if [[ $# -eq  0]] || [[ $# -gt 1 ]]; then
-    echo "Error: Expected 1 arguments, got $#"
-    echo "Usage: $0 <proc-date>"
-    exit 1
-fi
+# if [[ $# -eq  0]] || [[ $# -gt 1 ]]; then
+#     echo "Error: Expected 1 arguments, got $#"
+#     echo "Usage: $0 <proc_date>"
+#     exit 1
+# fi
 
 proc_date="$1"
 
