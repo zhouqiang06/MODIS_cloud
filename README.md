@@ -44,7 +44,7 @@ With the default settings, the output grid is 40,149 columns by 19,944 rows.
 
 ## Requirements
 
-- Python 3.10 or newer
+- Python 3.12 or newer
 - A free [NASA Earthdata Login](https://urs.earthdata.nasa.gov/)
 - Network access to NASA Earthdata and LAADS DAAC
 - A current Rasterio release whose `rasterio.warp.reproject()` supports
@@ -113,9 +113,11 @@ MOD03_COLLECTION_ID = "C1379767668-LAADS"
 ## Running
 
 ```bash
-python mod35_daily_tif.py \
+python mod35_daily.py \
   --proc-date 2025-01-01 \
-  --output-dir /home/jovyan/MOD35_L2_0.009deg
+  --output-dir /home/jovyan/MOD35_L2_0.009deg \
+  --earthdata-username "$EARTHDATA_USERNAME" \
+  --earthdata-password "$EARTHDATA_PASSWORD"
 ```
 
 Underscore aliases (`--proc_date` and `--output_dir`) are also accepted. Dates
@@ -135,6 +137,23 @@ MOD35_L2_0.009deg/
 
 The first run opens an interactive Earthdata authentication flow. Successful
 credentials are persisted by `earthaccess`.
+
+### MAAP DPS
+
+DPS passes the required values positionally:
+
+```bash
+./run.sh 2025-01-01 "$EARTHDATA_USERNAME" "$EARTHDATA_PASSWORD"
+```
+
+The password is therefore potentially visible in job metadata, process
+listings, and diagnostics. Rotate it if it appears in a log or support request.
+
+The FIPS-enabled DPS worker must not invoke `uv` at runtime. `build-env.sh`
+forces uv to create `.venv` from the MAAP base image's existing Python and
+disables uv-managed Python downloads. `run.sh` then executes
+`.venv/bin/python` directly. A successful build prints the base interpreter's
+OpenSSL version after importing all required native packages.
 
 For the requested day, the script:
 

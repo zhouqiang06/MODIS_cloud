@@ -4,7 +4,7 @@ set -euo pipefail
 # DPS entry point for one day of MOD35_L2 processing.
 
 basedir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
-RUN_SH_VERSION="2026-11-18.1"
+RUN_SH_VERSION="2026-11-18.3"
 echo "MOD35 run.sh version: ${RUN_SH_VERSION}"
 
 usage() {
@@ -140,7 +140,7 @@ case "${EARTHACCESS_LOGIN_STRATEGY}" in
         ;;
 esac
 
-python_script="${MOD35_SCRIPT:-${basedir}/mod35_daily_tif.py}"
+python_script="${MOD35_SCRIPT:-${basedir}/mod35_daily.py}"
 if [[ ! -f "${python_script}" && -f "${basedir}/mod35_daily.py" ]]; then
     python_script="${basedir}/mod35_daily.py"
 fi
@@ -157,9 +157,29 @@ if [[ -n "${earthdata_username}" ]]; then
     )
 fi
 
-exec env UV_PROJECT="${basedir}" \
-    uv run --project "${basedir}" --no-dev \
-    "${python_script}" \
+# Do not invoke uv at runtime. The DPS worker is FIPS-enabled, and a uv-managed
+# runtime can load a crypto implementation that fails its FIPS self-test.
+# build-env.sh creates .venv from the base image's existing Python interpreter.
+if [[ -n "${PYTHON_EXECUTABLE:-}" ]]; then
+    python_executable="${PYTHON_EXECUTABLE}"
+elif [[ -x "${basedir}/.venv/bin/python" ]]; then
+    python_executable="${basedir}/.venv/bin/python"
+elif command -v python3 >/dev/null 2>&1; then
+    python_executable="$(command -v python3)"
+else
+    echo "Error: no Python interpreter is available." >&2
+    exit 5
+fi
+
+if [[ ! -x "${python_executable}" ]]; then
+    echo "Error: Python interpreter is not executable: ${python_executable}" >&2
+    exit 5
+fi
+
+echo "Launching Python: ${python_executable}" >&2
+
+exec env PYTHONUNBUFFERED=1 PYTHONNOUSERSITE=1 \
+    "${python_executable}" "${python_script}" \
     --proc-date "${proc_date}" \
     --output_dir "${output_dir}" \
     "${credential_args[@]}"

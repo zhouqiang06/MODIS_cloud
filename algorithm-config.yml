@@ -1,6 +1,6 @@
 algorithm_description: Create daily MOD35 composite
 algorithm_name: MODIS_cloud
-algorithm_version: v0.1
+algorithm_version: v0.2
 build_command: MODIS_cloud/build-env.sh
 disk_space: 32GB
 docker_container_url: mas.maap-project.org/root/maap-workspaces/custom_images/maap_base:v4.2.0
@@ -11,6 +11,14 @@ inputs:
   - default: ''
     description: Date in ISO format, for example 2025-01-01
     name: proc_date
+    required: true
+  - default: ''
+    description: NASA Earthdata username
+    name: earthdata_username
+    required: true
+  - default: ''
+    description: NASA Earthdata password (passed as a raw positional argument)
+    name: earthdata_password
     required: true
 queue: maap-dps-worker-32gb
 repository_url: https://github.com/zhouqiang06/hls-composite

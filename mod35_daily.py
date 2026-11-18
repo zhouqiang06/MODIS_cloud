@@ -20,6 +20,7 @@ import json
 import os
 import re
 import shutil
+import sys
 import tempfile
 import warnings
 from datetime import datetime, timedelta
@@ -1132,12 +1133,14 @@ if __name__ == "__main__":
         description="MOD35_L2 Collection 6.1 daily cloud-count processing."
     )
     parser.add_argument(
+        "--proc-date",
         "--proc_date",
         dest="proc_date",
         help="Date in ISO format, for example 2025-01-01.",
         required=True,
     )
     parser.add_argument(
+        "--output-dir",
         "--output_dir",
         dest="output_dir",
         help=(
@@ -1147,6 +1150,7 @@ if __name__ == "__main__":
         required=True,
     )
     parser.add_argument(
+        "--earthdata-username",
         "--earthdata_username",
         dest="earthdata_username",
         help=(
@@ -1155,6 +1159,7 @@ if __name__ == "__main__":
         ),
     )
     parser.add_argument(
+        "--earthdata-password",
         "--earthdata_password",
         dest="earthdata_password",
         help=(
