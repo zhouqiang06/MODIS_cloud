@@ -149,11 +149,12 @@ DPS passes the required values positionally:
 The password is therefore potentially visible in job metadata, process
 listings, and diagnostics. Rotate it if it appears in a log or support request.
 
-The FIPS-enabled DPS worker must not invoke `uv` at runtime. `build-env.sh`
-forces uv to create `.venv` from the MAAP base image's existing Python and
-disables uv-managed Python downloads. `run.sh` then executes
-`.venv/bin/python` directly. A successful build prints the base interpreter's
-OpenSSL version after importing all required native packages.
+The FIPS-enabled DPS worker must not use a uv/PyPI virtual environment for this
+algorithm. `build-env.sh` installs the runtime packages into the MAAP base
+Conda environment so Python, Rasterio/GDAL, HDF4, and OpenSSL come from one
+compatible native stack. `run.sh` executes that recorded Conda interpreter
+directly. A successful build prints its OpenSSL version and `TLS self-test
+passed` after importing all required native packages.
 
 For the requested day, the script:
 

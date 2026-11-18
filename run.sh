@@ -4,7 +4,7 @@ set -euo pipefail
 # DPS entry point for one day of MOD35_L2 processing.
 
 basedir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
-RUN_SH_VERSION="2026-11-18.3"
+RUN_SH_VERSION="2026-11-18.4"
 echo "MOD35 run.sh version: ${RUN_SH_VERSION}"
 
 usage() {
@@ -157,15 +157,16 @@ if [[ -n "${earthdata_username}" ]]; then
     )
 fi
 
-# Do not invoke uv at runtime. The DPS worker is FIPS-enabled, and a uv-managed
-# runtime can load a crypto implementation that fails its FIPS self-test.
-# build-env.sh creates .venv from the base image's existing Python interpreter.
+# Do not invoke uv or a uv/PyPI virtual environment at runtime. build-env.sh
+# installs dependencies into the FIPS-compatible MAAP base Conda environment.
 if [[ -n "${PYTHON_EXECUTABLE:-}" ]]; then
     python_executable="${PYTHON_EXECUTABLE}"
-elif [[ -x "${basedir}/.venv/bin/python" ]]; then
-    python_executable="${basedir}/.venv/bin/python"
+elif [[ -f "${basedir}/.dps-python-path" ]]; then
+    IFS= read -r python_executable < "${basedir}/.dps-python-path"
 elif command -v python3 >/dev/null 2>&1; then
     python_executable="$(command -v python3)"
+elif command -v python >/dev/null 2>&1; then
+    python_executable="$(command -v python)"
 else
     echo "Error: no Python interpreter is available." >&2
     exit 5
@@ -177,6 +178,18 @@ if [[ ! -x "${python_executable}" ]]; then
 fi
 
 echo "Launching Python: ${python_executable}" >&2
+
+"${python_executable}" -c \
+    'import ssl, sys; print("Runtime OpenSSL: " + ssl.OPENSSL_VERSION, file=sys.stderr)'
+echo "Checking earthaccess import" >&2
+"${python_executable}" -c 'import earthaccess'
+echo "Checking NumPy import" >&2
+"${python_executable}" -c 'import numpy'
+echo "Checking Rasterio/GDAL import" >&2
+"${python_executable}" -c 'import rasterio'
+echo "Checking pyhdf/HDF4 import" >&2
+"${python_executable}" -c 'from pyhdf.SD import SD'
+echo "Runtime imports passed" >&2
 
 exec env PYTHONUNBUFFERED=1 PYTHONNOUSERSITE=1 \
     "${python_executable}" "${python_script}" \

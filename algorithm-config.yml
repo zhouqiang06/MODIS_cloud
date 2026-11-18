@@ -1,6 +1,6 @@
 algorithm_description: Create daily MOD35 composite
 algorithm_name: MODIS_cloud
-algorithm_version: v0.2
+algorithm_version: v0.3
 build_command: MODIS_cloud/build-env.sh
 disk_space: 32GB
 docker_container_url: mas.maap-project.org/root/maap-workspaces/custom_images/maap_base:v4.2.0
