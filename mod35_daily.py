@@ -71,6 +71,12 @@ POLAR_GEOLOCATION_CHUNK_ROWS = 256
 POLAR_LONGITUDE_SPAN_THRESHOLD = 180.0
 PROCESSING_ALGORITHM = "mod03_1km_rasterio_geoloc_nearest_v7"
 
+# Download retry settings
+MAX_DOWNLOAD_RETRIES = 3
+DOWNLOAD_RETRY_DELAY = 5  # seconds
+
+# Failure tolerance: allow up to this percentage of granules to fail
+MAX_FAILURE_RATE = 0.0  # 0% (publish only if all succeed)
 
 def configure_directories(save_dir):
     """Configure persistent and temporary paths from one output directory."""
@@ -259,7 +265,7 @@ def granule_date(granule):
     )
 
 
-def read_hdf_from_https(granule):
+def read_hdf_from_https(granule, retry_count=0):
     links = granule_data_links(granule)
     if not links:
         raise ValueError("Granule has no downloadable data links.")
@@ -300,9 +306,27 @@ def read_hdf_from_https(granule):
 
         return SD(temp_path, SDC.READ), temp_path
 
-    except Exception:
+    except Exception as exc:
         if temp_path and os.path.exists(temp_path):
             os.remove(temp_path)
+        
+        # Retry on transient errors
+        if retry_count < MAX_DOWNLOAD_RETRIES:
+            # Check if this is a retryable error (network, timeout, 5xx, 403)
+            is_retryable = False
+            error_str = str(exc).lower()
+            if any(keyword in error_str for keyword in ['timeout', 'connection', 'network', '403', '5']):
+                is_retryable = True
+            
+            if is_retryable:
+                wait_time = DOWNLOAD_RETRY_DELAY * (retry_count + 1)
+                warnings.warn(
+                    f"Download failed for {expected_filename}, "
+                    f"retrying in {wait_time}s (attempt {retry_count + 1}/{MAX_DOWNLOAD_RETRIES}): {exc}"
+                )
+                time.sleep(wait_time)
+                return read_hdf_from_https(granule, retry_count + 1)
+        
         raise
 
 
