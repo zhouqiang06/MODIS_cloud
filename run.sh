@@ -4,11 +4,14 @@ set -euo pipefail
 # DPS entry point for one day of MOD35_L2 processing.
 
 basedir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
+RUN_SH_VERSION="2026-11-18.1"
+echo "MOD35 run.sh version: ${RUN_SH_VERSION}"
 
 usage() {
     cat >&2 <<EOF
 Usage:
   $0 YYYY-MM-DD
+  $0 YYYY-MM-DD USER PASSWORD
   $0 YYYY-MM-DD --earthdata_username USER --earthdata_password PASSWORD
 
 WARNING: raw password arguments may be visible in process listings and logs.
@@ -32,6 +35,17 @@ fi
 
 earthdata_username=""
 earthdata_password=""
+
+# DPS supplies credentials as positional values after the processing date.
+if [[ $# -eq 2 && "$1" != --* ]]; then
+    earthdata_username="$1"
+    earthdata_password="$2"
+    shift 2
+elif [[ $# -gt 0 && "$1" != --* ]]; then
+    echo "Error: positional credentials require both USER and PASSWORD." >&2
+    usage
+    exit 2
+fi
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
